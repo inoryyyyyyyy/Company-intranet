@@ -633,6 +633,8 @@ ShopeeOrderSchema.index({ order_status: 1, createdAt: -1 });
 ShopeeOrderSchema.index({ shop_username: 1, createdAt: -1 });
 ShopeeOrderSchema.index({ unpaid_amount: 1, createdAt: -1 });
 ShopeeOrderSchema.index({ paid_on: 1 });
+// Phục vụ tìm kiếm đơn hàng theo sản phẩm (tìm kiếm bằng hình ảnh)
+ShopeeOrderSchema.index({ "items.product_name": 1 });
 
 export const MongoShopeeOrderModel: Model<IShopeeOrderDocument> =
   mongoose.models.ShopeeOrder || mongoose.model<IShopeeOrderDocument>("ShopeeOrder", ShopeeOrderSchema, "shopee_orders");

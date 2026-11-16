@@ -9,6 +9,7 @@ import { BarcodeScannerModal } from "@/components/inventory/BarcodeScannerModal"
 import { ScannedProductModal } from "@/components/inventory/ScannedProductModal";
 import { StockAdjustModal } from "@/components/inventory/StockAdjustModal";
 import { CreateProductModal } from "@/components/inventory/CreateProductModal";
+import { ImageSearchModal } from "@/components/inventory/ImageSearchModal";
 import { useToast } from "@/context/ToastContext";
 
 interface ProductStats {
@@ -56,6 +57,7 @@ export default function InventoryPage() {
   // 2-Way Sapo Action Modals State
   const [adjustProduct, setAdjustProduct] = useState<ShopeeProduct | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isImageSearchOpen, setIsImageSearchOpen] = useState(false);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
 
   // Mobile More Menu
@@ -639,6 +641,17 @@ export default function InventoryPage() {
                 </button>
               )}
             </div>
+
+            {/* Tìm kiếm bằng hình ảnh */}
+            <button
+              type="button"
+              onClick={() => setIsImageSearchOpen(true)}
+              className="py-1.5 sm:py-2 px-2.5 text-xs font-semibold rounded-xl border border-violet-200 dark:border-violet-800/60 bg-violet-50 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/50 transition shrink-0 cursor-pointer flex items-center gap-1 active:scale-95"
+              title="Tìm kiếm bằng hình ảnh"
+            >
+              <span>🖼️</span>
+              <span className="hidden sm:inline">Tìm bằng ảnh</span>
+            </button>
 
             {/* Select page size on Desktop */}
             <div className="hidden sm:block relative shrink-0">
@@ -1224,6 +1237,13 @@ export default function InventoryPage() {
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
         onSuccess={() => fetchInventory(true)}
+      />
+
+      {/* 12. Tìm kiếm sản phẩm / đơn hàng bằng hình ảnh */}
+      <ImageSearchModal
+        isOpen={isImageSearchOpen}
+        onClose={() => setIsImageSearchOpen(false)}
+        onSelectProduct={(p) => setSelectedProduct(p)}
       />
     </div>
   );
