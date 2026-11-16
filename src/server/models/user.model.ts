@@ -49,7 +49,8 @@ export async function ensureUsersSeeded() {
   if (usersSeeded) return;
   await connectToDatabase();
   for (const seed of INITIAL_SEED_USERS) {
-    const existing = await MongoUserModel.findOne({ email: seed.email });
+    // Tìm theo email HOẶC id: admin gốc có thể đã đổi email, tránh tạo trùng id (E11000)
+    const existing = await MongoUserModel.findOne({ $or: [{ email: seed.email }, { id: seed.id }] });
     if (!existing) {
       await MongoUserModel.create({
         ...seed,
