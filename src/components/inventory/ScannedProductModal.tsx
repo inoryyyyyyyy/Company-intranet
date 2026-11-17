@@ -6,6 +6,8 @@ import { ShopeeProduct } from "@/types";
 interface ScannedProductModalProps {
   product: ShopeeProduct | null;
   scannedCode: string;
+  /** SKU của phân loại vừa quét (nếu mã quét là QR của một phân loại). */
+  highlightSku?: string;
   isOpen: boolean;
   onClose: () => void;
   onScanAnother: () => void;
@@ -16,6 +18,7 @@ interface ScannedProductModalProps {
 export function ScannedProductModal({
   product,
   scannedCode,
+  highlightSku,
   isOpen,
   onClose,
   onScanAnother,
@@ -187,14 +190,28 @@ export function ScannedProductModal({
                   <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden divide-y divide-zinc-200 dark:divide-zinc-800 max-h-48 overflow-y-auto">
                     {variations.map((v, idx) => {
                       const vStock = v.stock ?? 0;
+                      const isScanned =
+                        !!highlightSku &&
+                        (highlightSku.startsWith("#")
+                          ? String(v.model_id) === highlightSku.slice(1)
+                          : (v.sku || "").toLowerCase() === highlightSku.toLowerCase());
                       return (
                         <div
                           key={v.model_id || idx}
-                          className="flex items-center justify-between p-2.5 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-xs"
+                          className={`flex items-center justify-between p-2.5 text-xs ${
+                            isScanned
+                              ? "bg-violet-50 dark:bg-violet-950/40 ring-2 ring-inset ring-violet-400 dark:ring-violet-600"
+                              : "bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                          }`}
                         >
                           <div className="flex-1 min-w-0 pr-2">
-                            <div className="font-medium text-zinc-900 dark:text-zinc-100 truncate">
-                              {v.name || `Phân loại #${idx + 1}`}
+                            <div className="font-medium text-zinc-900 dark:text-zinc-100 truncate flex items-center gap-1.5">
+                              <span className="truncate">{v.name || `Phân loại #${idx + 1}`}</span>
+                              {isScanned && (
+                                <span className="shrink-0 px-1.5 py-0.5 rounded-full bg-violet-600 text-white text-[9px] font-bold">
+                                  Vừa quét
+                                </span>
+                              )}
                             </div>
                             {v.sku && (
                               <div className="text-[10px] text-zinc-400 font-mono">

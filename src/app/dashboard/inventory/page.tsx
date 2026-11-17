@@ -49,6 +49,8 @@ export default function InventoryPage() {
 
   // Barcode / QR State
   const [printProduct, setPrintProduct] = useState<ShopeeProduct | null>(null);
+  const [printVariantSku, setPrintVariantSku] = useState<string | undefined>(undefined);
+  const [scannedVariantSku, setScannedVariantSku] = useState<string | undefined>(undefined);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [scannedProduct, setScannedProduct] = useState<ShopeeProduct | null>(null);
   const [scannedCode, setScannedCode] = useState("");
@@ -166,19 +168,54 @@ export default function InventoryPage() {
     setIsScannerOpen(false);
     const cleanCode = code.trim();
     setScannedCode(cleanCode);
+    setScannedVariantSku(undefined);
+
+    // Tìm sản phẩm khớp CHÍNH XÁC với mã quét (SKU cha hoặc SKU của một phân loại),
+    // tránh trả nhầm sản phẩm khi tìm gần đúng.
+    // Mã dạng "SKU-gốc#mã-phân-loại" dùng cho phân loại chưa có SKU riêng.
+    const hashIdx = cleanCode.lastIndexOf("#");
+    const scanBase = hashIdx > 0 ? cleanCode.slice(0, hashIdx) : cleanCode;
+    const scanModelId = hashIdx > 0 ? cleanCode.slice(hashIdx + 1) : "";
+
+    const resolve = (products: ShopeeProduct[], wanted: string) => {
+      const w = wanted.toLowerCase();
+      if (scanModelId) {
+        for (const p of products) {
+          const variant = (p.variations || []).find((v) => String(v.model_id) === scanModelId);
+          const matchesParent =
+            (p.parent_sku || "").toLowerCase() === w || `sku-${p.item_id}`.toLowerCase() === w;
+          if (variant && matchesParent) return { product: p, variantSku: variant.sku || undefined, modelId: scanModelId };
+        }
+      }
+      for (const p of products) {
+        const variant = (p.variations || []).find((v) => (v.sku || "").toLowerCase() === w);
+        if (variant) return { product: p, variantSku: variant.sku, modelId: undefined };
+      }
+      const parent = products.find(
+        (p) => (p.parent_sku || "").toLowerCase() === w || `sku-${p.item_id}`.toLowerCase() === w
+      );
+      if (parent) return { product: parent, variantSku: undefined, modelId: undefined };
+      return null;
+    };
 
     try {
-      let res = await fetch(`/api/shopee/products?search=${encodeURIComponent(cleanCode)}&limit=1`);
+      let res = await fetch(`/api/shopee/products?search=${encodeURIComponent(scanBase)}&limit=20`);
       let json = await res.json();
+      let wanted = scanBase;
 
-      if ((!json.success || !json.data?.products?.length) && /^SKU-/i.test(cleanCode)) {
-        const raw = cleanCode.replace(/^SKU-/i, "");
-        res = await fetch(`/api/shopee/products?search=${encodeURIComponent(raw)}&limit=1`);
+      if ((!json.success || !json.data?.products?.length) && /^SKU-/i.test(scanBase)) {
+        const raw = scanBase.replace(/^SKU-/i, "");
+        res = await fetch(`/api/shopee/products?search=${encodeURIComponent(raw)}&limit=20`);
         json = await res.json();
+        wanted = raw;
       }
 
       if (json.success && json.data?.products?.length > 0) {
-        setScannedProduct(json.data.products[0]);
+        const products: ShopeeProduct[] = json.data.products;
+        const exact = resolve(products, wanted);
+        setScannedProduct(exact ? exact.product : products[0]);
+        // Phân loại chưa có SKU được đánh dấu bằng model_id
+        setScannedVariantSku(exact?.variantSku ?? (exact?.modelId ? `#${exact.modelId}` : undefined));
       } else {
         setScannedProduct(null);
       }
@@ -1194,9 +1231,14 @@ export default function InventoryPage() {
 
       {/* 7. Barcode & QR Code Print Modal */}
       <BarcodePrintModal
+        key={`${printProduct?.item_id ?? "none"}-${printVariantSku ?? ""}`}
         product={printProduct}
+        initialVariantSku={printVariantSku}
         isOpen={!!printProduct}
-        onClose={() => setPrintProduct(null)}
+        onClose={() => {
+          setPrintProduct(null);
+          setPrintVariantSku(undefined);
+        }}
       />
 
       {/* 8. Barcode & QR Scanner Modal (Camera / Gun / Image) */}
@@ -1210,6 +1252,7 @@ export default function InventoryPage() {
       <ScannedProductModal
         product={scannedProduct}
         scannedCode={scannedCode}
+        highlightSku={scannedVariantSku}
         isOpen={isScannedResultOpen}
         onClose={() => setIsScannedResultOpen(false)}
         onScanAnother={() => {
@@ -1217,6 +1260,7 @@ export default function InventoryPage() {
           setIsScannerOpen(true);
         }}
         onPrintLabel={(prod) => {
+          setPrintVariantSku(scannedVariantSku);
           setPrintProduct(prod);
         }}
         onAdjustStock={(prod) => {
