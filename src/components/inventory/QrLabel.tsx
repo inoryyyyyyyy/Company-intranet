@@ -1,15 +1,17 @@
 import React from "react";
 
-export type LabelSizeKey = "50x30" | "40x30" | "75x50";
+export type LabelSizeKey = "40x30" | "50x30" | "60x40" | "75x50" | "100x50";
 
 /** Kích thước tem (mm) và cỡ mã QR để nội dung vừa khít tem. */
 export const LABEL_SIZES: Record<
   LabelSizeKey,
   { w: number; h: number; qr: number; qrVar: number; title: string }
 > = {
-  "50x30": { w: 50, h: 30, qr: 15, qrVar: 12, title: "50 x 30 mm (Khổ chuẩn)" },
   "40x30": { w: 40, h: 30, qr: 13, qrVar: 11, title: "40 x 30 mm (Nhỏ gọn)" },
+  "50x30": { w: 50, h: 30, qr: 15, qrVar: 12, title: "50 x 30 mm (Khổ chuẩn)" },
+  "60x40": { w: 60, h: 40, qr: 20, qrVar: 17, title: "60 x 40 mm (Vừa)" },
   "75x50": { w: 75, h: 50, qr: 26, qrVar: 24, title: "75 x 50 mm (Thùng carton)" },
+  "100x50": { w: 100, h: 50, qr: 28, qrVar: 26, title: "100 x 50 mm (Lớn)" },
 };
 
 /** Một tem QR cần in: mỗi phân loại một mã riêng. */
