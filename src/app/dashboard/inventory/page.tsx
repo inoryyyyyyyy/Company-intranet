@@ -10,6 +10,7 @@ import { ScannedProductModal } from "@/components/inventory/ScannedProductModal"
 import { StockAdjustModal } from "@/components/inventory/StockAdjustModal";
 import { CreateProductModal } from "@/components/inventory/CreateProductModal";
 import { ImageSearchModal } from "@/components/inventory/ImageSearchModal";
+import { BulkQrPrintModal } from "@/components/inventory/BulkQrPrintModal";
 import { useToast } from "@/context/ToastContext";
 
 interface ProductStats {
@@ -60,6 +61,7 @@ export default function InventoryPage() {
   const [adjustProduct, setAdjustProduct] = useState<ShopeeProduct | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isImageSearchOpen, setIsImageSearchOpen] = useState(false);
+  const [isBulkQrOpen, setIsBulkQrOpen] = useState(false);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
 
   // Mobile More Menu
@@ -430,6 +432,15 @@ export default function InventoryPage() {
             </button>
             <button
               type="button"
+              onClick={() => setIsBulkQrOpen(true)}
+              className="py-2 px-3 text-xs font-semibold rounded-xl border border-amber-200 dark:border-amber-800/60 bg-white dark:bg-zinc-800 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition flex items-center gap-1.5 shadow-2xs cursor-pointer whitespace-nowrap"
+              title="Chọn nhiều mã QR của sản phẩm / phân loại để in cùng lúc"
+            >
+              <span>🖨️</span>
+              <span>In QR hàng loạt</span>
+            </button>
+            <button
+              type="button"
               onClick={() => fetchInventory(true)}
               disabled={loading || refreshing || syncingSapo}
               className="py-2 px-3 text-xs font-semibold rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition flex items-center gap-1.5 shadow-2xs disabled:opacity-60 cursor-pointer whitespace-nowrap"
@@ -508,6 +519,17 @@ export default function InventoryPage() {
                 >
                   <span className="text-sm">📊</span>
                   <span>Xuất báo cáo CSV</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMoreMenu(false);
+                    setIsBulkQrOpen(true);
+                  }}
+                  className="w-full text-left p-2.5 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 flex items-center gap-2.5 text-zinc-700 dark:text-zinc-300 font-medium cursor-pointer"
+                >
+                  <span className="text-sm">🖨️</span>
+                  <span>In QR hàng loạt</span>
                 </button>
               </div>
             )}
@@ -1289,6 +1311,9 @@ export default function InventoryPage() {
         onClose={() => setIsImageSearchOpen(false)}
         onSelectProduct={(p) => setSelectedProduct(p)}
       />
+
+      {/* 13. In mã QR hàng loạt (tick chọn, xếp kín tờ giấy) */}
+      <BulkQrPrintModal isOpen={isBulkQrOpen} onClose={() => setIsBulkQrOpen(false)} />
     </div>
   );
 }
