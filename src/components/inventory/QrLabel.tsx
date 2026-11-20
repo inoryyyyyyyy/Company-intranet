@@ -34,7 +34,7 @@ interface QrLabelProps {
   className?: string;
 }
 
-export function QrLabel({ spec, size, qrUrl, showPrice, showBranch, className }: QrLabelProps) {
+function QrLabelBase({ spec, size, qrUrl, showPrice, showBranch, className }: QrLabelProps) {
   const dim = LABEL_SIZES[size];
   const qr = spec.variantName ? dim.qrVar : dim.qr;
 
@@ -78,3 +78,6 @@ export function QrLabel({ spec, size, qrUrl, showPrice, showBranch, className }:
     </div>
   );
 }
+
+/** Dùng memo để các tem không bị vẽ lại khi các cài đặt không liên quan thay đổi. */
+export const QrLabel = React.memo(QrLabelBase);

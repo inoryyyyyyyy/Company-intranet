@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
 import { ShopeeProduct } from "@/types";
@@ -192,6 +192,79 @@ function GridPage({
   );
 }
 
+/**
+ * Một dòng sản phẩm trong danh sách chọn. Dùng memo để tick một mã không phải vẽ lại
+ * toàn bộ hàng trăm dòng khác (nguyên nhân chính gây lag).
+ */
+const ProductRow = memo(function ProductRow({
+  entry,
+  selCount,
+  open,
+  selectedKeys,
+  onToggleKeys,
+  onToggleExpand,
+}: {
+  entry: ProductEntry;
+  selCount: number;
+  open: boolean;
+  selectedKeys: Set<string> | null; // chỉ truyền khi dòng đang mở rộng
+  onToggleKeys: (keys: string[]) => void;
+  onToggleExpand: (id: string) => void;
+}) {
+  const id = String(entry.product.item_id);
+  const keys = useMemo(() => entry.labels.map((l) => l.key), [entry.labels]);
+  const hasVariants = (entry.product.variations || []).length > 0;
+
+  return (
+    <li style={{ contentVisibility: "auto", containIntrinsicSize: "auto 52px" }}>
+      <div className="flex items-center gap-2.5 px-3 sm:px-4 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+        <TriCheckbox
+          checked={selCount === keys.length}
+          indeterminate={selCount > 0}
+          onChange={() => onToggleKeys(keys)}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">{entry.product.name}</div>
+          <div className="text-[10px] text-zinc-500 font-mono truncate">
+            {entry.product.parent_sku || `SKU-${entry.product.item_id}`} · {entry.labels.length} mã
+            {selCount > 0 ? ` · đã chọn ${selCount}` : ""}
+          </div>
+        </div>
+        {hasVariants && (
+          <button
+            type="button"
+            onClick={() => onToggleExpand(id)}
+            className="px-2 py-1 rounded-lg text-[10px] font-semibold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 cursor-pointer"
+          >
+            {open ? "Thu gọn ▲" : "Phân loại ▼"}
+          </button>
+        )}
+      </div>
+      {hasVariants && open && selectedKeys && (
+        <ul className="bg-zinc-50/70 dark:bg-zinc-800/30 pl-9 sm:pl-10 pr-3 py-1">
+          {entry.labels.map((l) => (
+            <li key={l.key}>
+              <label className="flex items-center gap-2.5 py-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedKeys.has(l.key)}
+                  onChange={() => onToggleKeys([l.key])}
+                  className="rounded border-zinc-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-zinc-800 dark:text-zinc-200 truncate">{l.variantName}</span>
+                  <span className="block text-[10px] text-zinc-400 font-mono truncate">{l.code}</span>
+                </span>
+                <span className="text-[10px] text-zinc-500 shrink-0">Tồn {l.stock}</span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+});
+
 const inputCls =
   "w-full px-2 py-1.5 text-center bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-xl font-bold focus:ring-2 focus:ring-amber-500 focus:outline-hidden";
 const selectCls =
@@ -227,6 +300,19 @@ export function BulkQrPrintModal({ isOpen, onClose }: BulkQrPrintModalProps) {
 
   const [reloadKey, setReloadKey] = useState(0);
 
+  // Chỉ dựng vùng in (có thể hàng nghìn tem) vào đúng lúc bấm In, rồi gỡ đi sau khi in xong
+  const [printing, setPrinting] = useState(false);
+  useEffect(() => {
+    if (!printing) return;
+    const done = () => setPrinting(false);
+    window.addEventListener("afterprint", done);
+    const t = window.setTimeout(() => window.print(), 80);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener("afterprint", done);
+    };
+  }, [printing]);
+
   const retry = () => {
     setLoading(true);
     setError(null);
@@ -255,7 +341,8 @@ export function BulkQrPrintModal({ isOpen, onClose }: BulkQrPrintModalProps) {
     };
   }, [isOpen, reloadKey]);
 
-  const q = search.trim().toLowerCase();
+  const deferredSearch = useDeferredValue(search);
+  const q = deferredSearch.trim().toLowerCase();
   const filtered = useMemo(() => (q ? entries.filter((e) => e.searchText.includes(q)) : entries), [entries, q]);
   const filteredKeys = useMemo(() => filtered.flatMap((e) => e.labels.map((l) => l.key)), [filtered]);
 
@@ -271,23 +358,23 @@ export function BulkQrPrintModal({ isOpen, onClose }: BulkQrPrintModalProps) {
     });
   };
 
-  const toggleKeys = (keys: string[]) => {
+  const toggleKeys = useCallback((keys: string[]) => {
     setSelected((prev) => {
       const next = new Set(prev);
       const all = keys.every((k) => next.has(k));
       keys.forEach((k) => (all ? next.delete(k) : next.add(k)));
       return next;
     });
-  };
+  }, []);
 
-  const toggleExpand = (id: string) => {
+  const toggleExpand = useCallback((id: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  };
+  }, []);
 
   // Danh sách tem đã chọn (giữ thứ tự sản phẩm)
   const selectedLabels = useMemo(
@@ -300,27 +387,36 @@ export function BulkQrPrintModal({ isOpen, onClose }: BulkQrPrintModalProps) {
 
   const codesKey = useMemo(() => Array.from(new Set(selectedLabels.map((l) => l.code))).join("\n"), [selectedLabels]);
 
-  // Tạo mã QR cho các tem đã chọn (SVG, nhanh và nét khi in)
+  // Tạo mã QR cho các tem đã chọn (SVG). Chia thành từng cụm nhỏ và nhường luồng giao diện
+  // giữa các cụm để không làm đơ trang khi chọn hàng nghìn mã.
+  const qrMapRef = useRef(qrMap);
+  useEffect(() => {
+    qrMapRef.current = qrMap;
+  }, [qrMap]);
+
   useEffect(() => {
     if (!isOpen || !codesKey) return;
-    const missing = codesKey.split("\n").filter((c) => !qrMap[c]);
+    const missing = codesKey.split("\n").filter((c) => !qrMapRef.current[c]);
     if (missing.length === 0) return;
     let cancelled = false;
     (async () => {
-      const result: Record<string, string> = {};
-      const CHUNK = 100;
+      const CHUNK = 60;
       for (let i = 0; i < missing.length; i += CHUNK) {
         const part = missing.slice(i, i + CHUNK);
         const urls = await Promise.all(part.map(makeQrDataUrl));
+        if (cancelled) return;
+        const result: Record<string, string> = {};
         part.forEach((c, idx) => (result[c] = urls[idx]));
+        setQrMap((prev) => ({ ...prev, ...result }));
+        // Nhường luồng cho giao diện giữa hai cụm
+        await new Promise((resolve) => setTimeout(resolve, 0));
         if (cancelled) return;
       }
-      if (!cancelled) setQrMap((prev) => ({ ...prev, ...result }));
     })();
     return () => {
       cancelled = true;
     };
-  }, [isOpen, codesKey, qrMap]);
+  }, [isOpen, codesKey]);
 
   const qrReady = selectedLabels.every((l) => !!qrMap[l.code]);
 
@@ -552,57 +648,20 @@ export function BulkQrPrintModal({ isOpen, onClose }: BulkQrPrintModalProps) {
                 <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
                   {filtered.map((e) => {
                     const id = String(e.product.item_id);
-                    const keys = e.labels.map((l) => l.key);
-                    const selCount = keys.filter((k) => selected.has(k)).length;
+                    let selCount = 0;
+                    for (const l of e.labels) if (selected.has(l.key)) selCount++;
                     const hasVariants = (e.product.variations || []).length > 0;
                     const isOpenRow = expanded.has(id) || (!!q && hasVariants && e.labels.length <= 12);
                     return (
-                      <li key={id}>
-                        <div className="flex items-center gap-2.5 px-3 sm:px-4 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
-                          <TriCheckbox
-                            checked={selCount === keys.length}
-                            indeterminate={selCount > 0}
-                            onChange={() => toggleKeys(keys)}
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">{e.product.name}</div>
-                            <div className="text-[10px] text-zinc-500 font-mono truncate">
-                              {e.product.parent_sku || `SKU-${e.product.item_id}`} · {e.labels.length} mã
-                              {selCount > 0 ? ` · đã chọn ${selCount}` : ""}
-                            </div>
-                          </div>
-                          {hasVariants && (
-                            <button
-                              type="button"
-                              onClick={() => toggleExpand(id)}
-                              className="px-2 py-1 rounded-lg text-[10px] font-semibold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 cursor-pointer"
-                            >
-                              {isOpenRow ? "Thu gọn ▲" : "Phân loại ▼"}
-                            </button>
-                          )}
-                        </div>
-                        {hasVariants && isOpenRow && (
-                          <ul className="bg-zinc-50/70 dark:bg-zinc-800/30 pl-9 sm:pl-10 pr-3 py-1">
-                            {e.labels.map((l) => (
-                              <li key={l.key}>
-                                <label className="flex items-center gap-2.5 py-1.5 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={selected.has(l.key)}
-                                    onChange={() => toggleKeys([l.key])}
-                                    className="rounded border-zinc-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
-                                  />
-                                  <span className="min-w-0 flex-1">
-                                    <span className="block text-zinc-800 dark:text-zinc-200 truncate">{l.variantName}</span>
-                                    <span className="block text-[10px] text-zinc-400 font-mono truncate">{l.code}</span>
-                                  </span>
-                                  <span className="text-[10px] text-zinc-500 shrink-0">Tồn {l.stock}</span>
-                                </label>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </li>
+                      <ProductRow
+                        key={id}
+                        entry={e}
+                        selCount={selCount}
+                        open={isOpenRow}
+                        selectedKeys={isOpenRow ? selected : null}
+                        onToggleKeys={toggleKeys}
+                        onToggleExpand={toggleExpand}
+                      />
                     );
                   })}
                 </ul>
@@ -857,8 +916,8 @@ export function BulkQrPrintModal({ isOpen, onClose }: BulkQrPrintModalProps) {
             </button>
             <button
               type="button"
-              onClick={() => window.print()}
-              disabled={!canPrint}
+              onClick={() => setPrinting(true)}
+              disabled={!canPrint || printing}
               className="flex-1 sm:flex-initial py-2 px-5 text-xs font-bold rounded-xl bg-amber-600 hover:bg-amber-700 text-white transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span>🖨️</span>
@@ -869,7 +928,7 @@ export function BulkQrPrintModal({ isOpen, onClose }: BulkQrPrintModalProps) {
       </div>
 
       {/* Vùng in: đặt trực tiếp trong <body> để in nhiều trang đúng */}
-      {typeof document !== "undefined" && createPortal(printArea, document.body)}
+      {printing && typeof document !== "undefined" && createPortal(printArea, document.body)}
     </div>
   );
 }
